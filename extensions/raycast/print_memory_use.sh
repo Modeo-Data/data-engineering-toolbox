@@ -8,7 +8,6 @@
 
 # Optional parameters:
 # @raycast.icon 🤖
-# @raycast.argument1 {"type": "text", "placeholder": "inline", "optional": true}
 # @raycast.packageName Modeo
 
 # Documentation:

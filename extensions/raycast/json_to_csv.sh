@@ -8,7 +8,6 @@
 
 # Optional parameters:
 # @raycast.icon 🤖
-# @raycast.argument1 {"type": "text", "placeholder": "inline", "optional": true}
 # @raycast.packageName Modeo
 
 # Documentation:
@@ -16,6 +15,6 @@
 # @raycast.authorURL https://github.com/aguinilydia
 # @raycast.description Convert the JSON currently in the clipboard on csv.
 
-json=$1
-cat $json | jq -r '.[]| join(";")'
+
+pbpaste | jq -r '.[]| join(";")' | pbcopy
 echo "Copied to clipboard !"
