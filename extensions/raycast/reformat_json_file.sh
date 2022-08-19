@@ -9,4 +9,4 @@
 # @raycast.packageName Modeo
 # @raycast.description Pretty prints the JSON currently in the clipboard.
 
-pbpaste | python3 -m json.tool
+pbpaste | python3 -m json.tool | pbcopy
