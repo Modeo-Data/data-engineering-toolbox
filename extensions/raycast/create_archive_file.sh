@@ -7,6 +7,8 @@
 # @raycast.mode fullOutput
 
 # Optional parameters:
+# @raycast.argument1 { "type": "text", "placeholder": "archive_name" }
+# @raycast.argument1 { "type": "text", "placeholder": "file_to_archive" }
 # @raycast.icon 🤖
 # @raycast.packageName Modeo
 

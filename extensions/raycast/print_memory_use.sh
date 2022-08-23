@@ -2,7 +2,7 @@
 
 # Required parameters:
 # @raycast.schemaVersion 1
-# @raycast.title System CPU and MEM
+# @raycast.title CPU and memory use
 # @raycast.mode inline
 # @raycast.packageName Dashboard
 

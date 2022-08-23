@@ -7,7 +7,6 @@
 
 # Optional parameters:
 # @raycast.icon 🤖
-# @raycast.argument1 {"type": "text", "optional": true}
 # @raycast.packageName Modeo
 
 # Documentation:
@@ -15,5 +14,6 @@
 # @raycast.authorURL https://github.com/aguinilydia
 # @raycast.description Convert the CSV file into JSON.
 
-pbpaste | python -c 'import pandas;import sys;df=pandas.read_csv(sys.stdin,sep=";");print(df.to_json())'| pbcopy
+source ../venv/bin/activate
+pbpaste | python3 './python_scripts/csv_to_json.py'| pbcopy
 echo "Copied to clipboard !"
