@@ -16,4 +16,3 @@
 source ../venv/bin/activate
 cat $1 | python -m json.tool| pbcopy
 echo "Copied to clipboard !"
-

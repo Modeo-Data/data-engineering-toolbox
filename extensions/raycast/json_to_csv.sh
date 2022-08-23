@@ -18,4 +18,3 @@
 source ../venv/bin/activate
 pbpaste | python3 './python_scripts/json_to_csv.py' |pbcopy
 echo "Copied to clipboard !"
-
