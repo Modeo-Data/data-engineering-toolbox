@@ -22,4 +22,3 @@ source ../venv/bin/activate
 
 pbpaste| python3 '../python_scripts/replace_separator.py' $1 $2 | pbcopy
 echo "Copied to clipboard !"
-

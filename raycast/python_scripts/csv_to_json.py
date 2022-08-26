@@ -6,4 +6,3 @@ df = pd.read_csv(sys.stdin, sep=";")
 json_data = df.to_json()
 # Print the result
 print(json_data)
-

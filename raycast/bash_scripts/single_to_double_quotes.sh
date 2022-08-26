@@ -19,4 +19,3 @@ source ../venv/bin/activate
 
 pbpaste| python3 '../python_scripts/single_to_double_quotes.py' | pbcopy
 echo "Copied to clipboard !"
-
