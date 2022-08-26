@@ -3,7 +3,7 @@
 
 # Required parameters:
 # @raycast.schemaVersion 1
-# @raycast.title Create an archive for file or directory
+# @raycast.title archive file
 # @raycast.mode fullOutput
 
 # Optional parameters:
