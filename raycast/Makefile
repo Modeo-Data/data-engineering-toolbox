@@ -1,5 +1,5 @@
 
-.PHONY: init install clean
+.PHONY: install clean
 
 install:
 	if [ -e "raycast-venv" ] ; then rm -rf raycast-venv ; fi
