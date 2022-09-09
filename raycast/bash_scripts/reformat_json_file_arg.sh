@@ -13,6 +13,6 @@
 # @raycast.description Reformat the JSON file argument.
 
 
-source ../venv/bin/activate
+source ../../raycast-venv/bin/activate
 cat $1 | python -m json.tool| pbcopy
 echo "Copied to clipboard !"

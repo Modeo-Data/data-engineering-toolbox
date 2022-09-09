@@ -18,5 +18,6 @@
 # @raycast.description Create an archive for file or directory
 
 # $1 archive name, $2 the file or directory to archive
+source ../../raycast-venv/bin/activate
 
 tar -zcvf $1 $2

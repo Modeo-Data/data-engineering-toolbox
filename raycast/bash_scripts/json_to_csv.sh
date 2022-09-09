@@ -15,6 +15,6 @@
 # @raycast.authorURL https://github.com/aguinilydia
 # @raycast.description Convert the JSON currently in the clipboard on csv.
 
-source ../venv/bin/activate
+source ../../raycast-venv/bin/activate
 pbpaste | python3 '../python_scripts/json_to_csv.py' |pbcopy
 echo "Copied to clipboard !"

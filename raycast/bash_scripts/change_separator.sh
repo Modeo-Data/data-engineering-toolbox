@@ -18,7 +18,7 @@
 # @raycast.description Replace old_separator to new_separator in data currently in the clipboard
 
 
-source ../venv/bin/activate
+source ../../raycast-venv/bin/activate
 
 pbpaste| python3 '../python_scripts/replace_separator.py' $1 $2 | pbcopy
 echo "Copied to clipboard !"
