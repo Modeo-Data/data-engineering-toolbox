@@ -1,127 +1,102 @@
+import os
+
 import pandas as pd
-import logging as log
-import re
+import logging
+from dotenv import load_dotenv
+import click
 
 import boto3
-from botocore.exceptions import NoCredentialsError
+
+from s3 import create_s3_client
+from file_structure import FileStructure
+
+
+logging.basicConfig(level=logging.INFO)
+
+load_dotenv()
+BUCKET = os.getenv("BUCKET")
 
 
 class CollectionPartitioner:
     def __init__(self, bucket: str):
         self.bucket = bucket
-
-    @staticmethod
-    def init_sts_client():
-        """Init client for AWS S3"""
-        try:
-            s3_client = boto3.client("sts")
-        except NoCredentialsError:
-            log.error("Credentials are missing or incorrect")
-            raise
-        return s3_client
+        self.client = create_s3_client()
 
     def get_files_of_collection(self, collection_key: str) -> list:
         """
+        list of keys of all the files in the collection folder
 
         :param collection_key: key of the collection folder
-        :return: list of keys of all the files in the collection folder
         """
 
         keys = []
-
-        sts_client= CollectionPartitioner.init_sts_client()
-        assumed_role_object = sts_client.assume_role(
-            RoleArn="arn:aws:iam::585762237892:role/gads-citron-modeo",
-            RoleSessionName="AssumeRoleSession1",
-        )
-        credentials = assumed_role_object["Credentials"]
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
-        )
-
-        for file in s3_client.list_objects(Bucket=self.bucket, Prefix= collection_key)["Contents"]:
-            if not file["Key"].endswith('/'):
+        logging.info("Getting files' keys of the bucket...")
+        for file in self.client.list_objects(Bucket=self.bucket, Prefix=collection_key)[
+            "Contents"
+        ]:
+            if not file["Key"].endswith("/"):
                 keys.append(file["Key"])
 
-        sts_client.close()
-        s3_client.close()
         return keys
-
-    @staticmethod
-    def get_file_infos(key: str) -> dict:
-        """
-
-        :param key: key of the file stored in s3
-        :return: dict containing the information of the file: key, year, month, day
-        """
-
-        res= re.search(r"^.*year=(?P<year>\d+)/month=(?P<month>\d+)/day=(?P<day>\d+)/(?P<file_name>.*)$",key)
-        file_infos={
-            "key": key,
-            "file_name":res.group('file_name'),
-            "year":int(res.group('year')),
-            "month":int(res.group('month')),
-            "day":int(res.group('day')),
-        }
-        return file_infos
 
     def create_collection_structure(self, collection_key: str) -> pd.DataFrame:
         """
+        return a pandas dataframe that summarizes the information of each file in this collection
 
         :param collection_key: key of the collection in s3
-        :return: return a pandas dataframe that summarizes the information of each file in this collection
         """
-        data= pd.DataFrame(columns=["key","file_name","year","month","day"])
-        files= self.get_files_of_collection(collection_key)
-        for file in files:
-            data.loc[len(data.index)]= list(CollectionPartitioner.get_file_infos(file).values())
 
+        logging.info("Creating the pandas.dataframe structure for the folder...")
+        data = pd.DataFrame(columns=["key", "file_name", "year", "month", "day"])
+        files = self.get_files_of_collection(collection_key)
+        for file in files:
+            data.loc[len(data.index)] = FileStructure(file).values_
+
+        logging.info("Folder structure created successfully !")
         return data
 
-    def partition_collection(self, collection_key:str, year:bool, month:bool,day:bool,new_collection_key:str):
+    def partition_collection(
+        self,
+        collection_key: str,
+        year: bool,
+        month: bool,
+        day: bool,
+        new_collection_key: str,
+    ):
         """
+        create a new partitioned collection from an existing collection depending on the passed params
 
         :param collection_key: existing collection key
         :param year: bool to partition with year
         :param month: bool to partition with month
         :param day: bool to partition with day
         :param new_collection_key: new partitioned collection key
-        :return: create a new partitioned collection from an existing collection depending on the passed params
         """
 
-        data= self.create_collection_structure(collection_key)
-        partition_parameters=[]
-        if year: partition_parameters.append('year')
-        if month: partition_parameters.append('month')
-        if day: partition_parameters.append('day')
+        data = self.create_collection_structure(collection_key)
+        partition_parameters = []
+        if year:
+            partition_parameters.append("year")
+        if month:
+            partition_parameters.append("month")
+        if day:
+            partition_parameters.append("day")
 
-        aws_client = self.init_sts_client()
-
-        assumed_role_object = aws_client.assume_role(
-            RoleArn="arn:aws:iam::585762237892:role/gads-citron-modeo",
-            RoleSessionName="AssumeRoleSession1",
-        )
-
-        credentials = assumed_role_object["Credentials"]
-
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=credentials["AccessKeyId"],
-            aws_secret_access_key=credentials["SecretAccessKey"],
-            aws_session_token=credentials["SessionToken"],
-        )
-
+        logging.info(f"Partition params are: {partition_parameters}")
         self.partition_data(
             files_data=data,
             columns=partition_parameters,
             base_s3_folder=new_collection_key,
-            client=s3_client
+            client=self.client,
         )
 
-    def partition_data(self, files_data:pd.DataFrame,columns:list,base_s3_folder:str,client: boto3.client):
+    def partition_data(
+        self,
+        files_data: pd.DataFrame,
+        columns: list,
+        base_s3_folder: str,
+        client: boto3.client,
+    ):
         """
         partition the data in the base folder according to the specified columns
 
@@ -131,30 +106,70 @@ class CollectionPartitioner:
         :param client: aws s3 client
         """
 
-        if len(columns)>0:
-            first_col= columns[0]
-            partitioned_files= files_data.groupby(first_col,group_keys=True).apply(
-                lambda x:x
+        if len(columns) > 0:
+            first_col = columns[0]
+            logging.info(f"Partition by {first_col}...")
+            partitioned_files = files_data.groupby(first_col, group_keys=True).apply(
+                lambda x: x
             )
             for val in files_data[first_col].unique():
                 current_partition = partitioned_files.loc[val]
 
-                folder_to_create=f"{base_s3_folder}/{first_col}={val}"
-                client.put_object(
-                    Bucket=self.bucket, Key=folder_to_create+"/"
-                )
-                if len(columns)==1:
-                    current_partition= partitioned_files.loc[val]
+                folder_to_create = f"{base_s3_folder}/{first_col}={val}"
+                client.put_object(Bucket=self.bucket, Key=folder_to_create + "/")
+                if len(columns) == 1:
+                    current_partition = partitioned_files.loc[val]
                     for i in current_partition.index:
-                        copy_source={
-                            "Bucket":self.bucket,
-                            "Key": current_partition.loc[i]['key']
+                        copy_source = {
+                            "Bucket": self.bucket,
+                            "Key": current_partition.loc[i]["key"],
                         }
-                        client.copy(copy_source,self.bucket,folder_to_create+"/"+current_partition.loc[i]['file_name'])
+                        client.copy(
+                            copy_source,
+                            self.bucket,
+                            folder_to_create
+                            + "/"
+                            + current_partition.loc[i]["file_name"],
+                        )
                 else:
                     self.partition_data(
                         files_data=current_partition,
                         columns=[col for col in columns if col != first_col],
                         base_s3_folder=folder_to_create,
-                        client=client
+                        client=client,
                     )
+
+        logging.info("Partitioning done successfully !")
+
+
+@click.command()
+@click.option(
+    "--collection-key",
+    default="test-source",
+    prompt="Collection key",
+    help="Collection to partition",
+)
+@click.option("--year", is_flag=True, help="Partition by year")
+@click.option("--month", is_flag=True, help="Partition by month")
+@click.option("--day", is_flag=True, help="Partition by day")
+@click.option(
+    "--new-collection-key",
+    default="test-result",
+    prompt="New collection key",
+    help="Partitioned collection",
+)
+def main(
+    collection_key: str, year: bool, month: bool, day: bool, new_collection_key: str
+):
+    partitioner = CollectionPartitioner(bucket=BUCKET)
+    partitioner.partition_collection(
+        collection_key=collection_key,
+        year=year,
+        month=month,
+        day=day,
+        new_collection_key=new_collection_key,
+    )
+
+
+if __name__ == "__main__":
+    main()
