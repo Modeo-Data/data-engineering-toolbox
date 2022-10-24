@@ -1,0 +1,20 @@
+[tool.poetry]
+name = "citron-collection-partitioner"
+version = "0.1.0"
+description = ""
+authors = ["None"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pandas = "^1.5.0"
+boto3 = "^1.24.93"
+python-dotenv = "^0.21.0"
+click = "^8.1.3"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.10.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
