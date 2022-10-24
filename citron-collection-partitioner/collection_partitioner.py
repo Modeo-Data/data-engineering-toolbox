@@ -4,17 +4,39 @@ import pandas as pd
 import logging
 from dotenv import load_dotenv
 import click
+import time
+import re
 
 import boto3
 
 from s3 import create_s3_client
-from file_structure import FileStructure
 
 
 logging.basicConfig(level=logging.INFO)
 
 load_dotenv()
 BUCKET = os.getenv("BUCKET")
+
+
+class S3Object:
+    """Class containing characteristics of a file in s3 bucket"""
+
+    def __init__(self, key):
+        logging.info(f"File key: {key}")
+        res = re.search(
+            r"^.*year=(?P<year>\d+)/month=(?P<month>\d+)/day=(?P<day>\d+)/(?P<file_name>.*)$",
+            key,
+        )
+        self.key = key
+        self.file_name = res.group("file_name")
+        self.year = int(res.group("year"))
+        self.month = int(res.group("month"))
+        self.day = int(res.group("day"))
+
+    @property
+    def values_(self):
+        """Get the characteristics of file as a list"""
+        return [self.key, self.file_name, self.year, self.month, self.day]
 
 
 class CollectionPartitioner:
@@ -50,7 +72,7 @@ class CollectionPartitioner:
         data = pd.DataFrame(columns=["key", "file_name", "year", "month", "day"])
         files = self.get_files_of_collection(collection_key)
         for file in files:
-            data.loc[len(data.index)] = FileStructure(file).values_
+            data.loc[len(data.index)] = S3Object(file).values_
 
         logging.info("Folder structure created successfully !")
         return data
@@ -89,6 +111,7 @@ class CollectionPartitioner:
             base_s3_folder=new_collection_key,
             client=self.client,
         )
+        logging.info("Partitioning done successfully !")
 
     def partition_data(
         self,
@@ -139,8 +162,6 @@ class CollectionPartitioner:
                         client=client,
                     )
 
-        logging.info("Partitioning done successfully !")
-
 
 @click.command()
 @click.option(
@@ -148,19 +169,22 @@ class CollectionPartitioner:
     default="test-source",
     prompt="Collection key",
     help="Collection to partition",
+    type=str,
 )
-@click.option("--year", is_flag=True, help="Partition by year")
-@click.option("--month", is_flag=True, help="Partition by month")
-@click.option("--day", is_flag=True, help="Partition by day")
+@click.option("-y", "--year", is_flag=True, help="Partition by year")
+@click.option("-m", "--month", is_flag=True, help="Partition by month")
+@click.option("-d", "--day", is_flag=True, help="Partition by day")
 @click.option(
     "--new-collection-key",
     default="test-result",
     prompt="New collection key",
     help="Partitioned collection",
+    type=str,
 )
 def main(
     collection_key: str, year: bool, month: bool, day: bool, new_collection_key: str
 ):
+    start_time = time.time()
     partitioner = CollectionPartitioner(bucket=BUCKET)
     partitioner.partition_collection(
         collection_key=collection_key,
@@ -169,6 +193,7 @@ def main(
         day=day,
         new_collection_key=new_collection_key,
     )
+    print("--- %s seconds ---" % (time.time() - start_time))
 
 
 if __name__ == "__main__":
