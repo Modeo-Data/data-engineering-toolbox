@@ -1,12 +1,20 @@
 import jinja2 
 import yaml
-from yaml.loader import SafeLoader
+from yaml.loader import Loader
 
+
+def cast_list_to_tuples(context: dict):
+    for key, val in context.items():
+        print(type(val))
+        if isinstance(val, list):
+            context[key] = tuple(val)
+    return context
 
 def load_context(file_name: str)->dict:
     with open(file_name) as f:
-        data = yaml.load(f, Loader=SafeLoader)
-    return data
+        data = yaml.load(f.read(), Loader=Loader)
+        #data = yaml.load(f, Loader=SafeLoader)
+    return cast_list_to_tuples(data)
 
 
 def get_template(folder: str, file_name: str, jinja_context: dict) -> str:
