@@ -4,19 +4,15 @@ from yaml.loader import SafeLoader
 
 
 def generate_request(folder: str, file_name: str, context_config_path: str)-> str:
-    """get templates for jinja 
-    Parameters
-    ----------
-    folder : str
-        template folder
-    file_name : str
-        template file
-    context_config_path : str
-        config.yaml to load the jinja context from
-    Returns
-    -------
-    str
-        Returns template string
+    """generate sql query from template and context
+
+    Args:
+        folder (str): template folder path
+        file_name (str): template name
+        context_config_path (str): path to the config.yaml
+
+    Returns:
+        str: sql query
     """
     jinja_context = _load_context(context_config_path)
     sql = _get_template(folder, file_name, jinja_context)
@@ -25,18 +21,14 @@ def generate_request(folder: str, file_name: str, context_config_path: str)-> st
 
 def _get_template(folder: str, file_name: str, jinja_context: dict) -> str:
     """get templates for jinja 
-    Parameters
-    ----------
-    folder : str
-        template folder
-    file_name : str
-        template file
-    jinja_context : dict
-        Jinja context
-    Returns
-    -------
-    str
-        Returns template string
+
+    Args:
+        folder (str): template folder path
+        file_name (str): template name
+        jinja_context (dict): context dict for jinja 
+
+    Returns:
+        str: _description_
     """
     templateLoader = jinja2.FileSystemLoader(searchpath=folder)
     templateEnv = jinja2.Environment(loader=templateLoader)
@@ -47,13 +39,12 @@ def _get_template(folder: str, file_name: str, jinja_context: dict) -> str:
 
 def _cast_list_to_tuples(context: dict)-> dict:
     """cast dict values to tuple if they are lists
-    Parameters
-    ----------
-    context : dict
-    Returns
-    -------
-    dict
-        Returns the input dict modified
+
+    Args:
+        context (dict): context dict
+
+    Returns:
+        dict: context dict with list casted to tuples
     """
     for key, val in context.items():
         if isinstance(val, list):
@@ -65,14 +56,12 @@ def _cast_list_to_tuples(context: dict)-> dict:
 
 def _load_context(file_name: str)->dict:
     """loads context from config.yaml
-    Parameters
-    ----------
-    file_name : str
-         path of the config.yaml
-    Returns
-    ----------
-    dict
-        context dict
+
+    Args:
+        file_name (str): path of the .yaml
+
+    Returns:
+        dict: context for jinja
     """
     with open(file_name) as f:
         data = yaml.load(f, Loader=SafeLoader)
