@@ -1,3 +1,5 @@
+DROP TABLE IF EXISTS datawarehouse_prod.alteal_payload ON CLUSTER default;
+​
 CREATE TABLE IF NOT EXISTS datawarehouse_prod.alteal_payload ON CLUSTER default (
   device_id String,
   device_name String,
@@ -26,16 +28,18 @@ CREATE TABLE IF NOT EXISTS datawarehouse_prod.alteal_payload ON CLUSTER default 
 )
     ENGINE = ReplicatedReplacingMergeTree
     order by (payload_id, metrics_id);
-
+​
+DROP TABLE IF EXISTS datawarehouse_prod.distributed_alteal_payload ON CLUSTER default;
+​
 CREATE TABLE IF NOT EXISTS datawarehouse_prod.distributed_alteal_payload ON CLUSTER default AS datawarehouse_prod.alteal_payload ENGINE = Distributed(
   default,
   datawarehouse_prod,
   alteal_payload,
   murmurHash3_64(device_id)
 );
-
+​
 INSERT INTO datawarehouse_prod.distributed_alteal_payload
-
+​
 WITH
 -- Get parent group info from distributed_groups_descendants
     parent_info as (
@@ -49,7 +53,7 @@ WITH
       group by
         descendants
     ),
-
+​
     -- Get all buildings data with groups
     batiment_multi as (
       select
@@ -61,7 +65,7 @@ WITH
         datawarehouse_prod.distributed_global_buildings gb
         inner join datawarehouse_prod.distributed_parent_child_group_ids pcg on gb.parent = pcg.descendants
     ),
-
+​
     client_devices as (
       select
         dvc.device_id as device_id,
@@ -80,9 +84,9 @@ WITH
         left join datawarehouse_prod.distributed_global_devices_features dvc_feat on dvc_feat.device_id = dvc.device_id
         left join datawarehouse_prod.distributed_global_group_name grp on dvc.group_id = grp.group_id
       where
-        dvc.iot_entity IN {{ params.iot_entity_list }}
+        dvc.iot_entity in {{ params.client.alteal.iot_entity_list }}
     ),
-
+​
     pld_dvc AS (
       select
         dvc.device_id as device_id,
@@ -118,16 +122,17 @@ WITH
         inner join client_devices dvc on pld.device_uid = dvc.device_payload_uid
         left join raw_prod.distributed_mongo_sensors sns FINAL on pld.metrics_id = sns._id
       where
-        sns._id in {{ params.sns_id_list }} and payload_date_eur > addHours(now(),-24)
+        in {{ params.client.alteal.sensors_ids_list }}
       order by
         device_id,
         payload_date_eur
     ),
-
+​
     compute_time_spent as (
       select
         *,
-        if(payload_hour > 5 and payload_hour < 23, 'day', 'night') AS shift,
+        if(payload_hour > {{ params.client.alteal.day.start_hour }} 
+        and payload_hour < {{ params.client.alteal.night.start_hour }}, 'day', 'night') AS shift,
         If(
           neighbor(device_id, -1) = device_id,
           date_diff(
@@ -159,27 +164,31 @@ WITH
       cz.metrics_value_numeric as metrics_value_numeric,
       cz.metrics_unit as metrics_unit,
       cz.time_spent as time_spent,
-          IF(cz.metrics_value_numeric >= 19 and cz.metrics_value_numeric <= 21 and cz.shift = 'day',
+          IF(cz.metrics_value_numeric >= {{ params.client.alteal.day.inf_confort_zone }} and cz.metrics_value_numeric <= {{ params.client.alteal.day.sup_confort_zone }} and cz.shift = 'day',
              'Température dans la zone de confort - jour',
-             IF(cz.metrics_value_numeric >= 17 and cz.metrics_value_numeric <= 18 and cz.shift = 'night',
+             IF(cz.metrics_value_numeric >= {{ params.client.alteal.night.inf_confort_zone }} and cz.metrics_value_numeric <= {{ params.client.alteal.night.sup_confort_zone }} and cz.shift = 'night',
                 'Température dans la zone de confort - nuit',
-                IF((cz.metrics_value_numeric > 21.5 and cz.shift = 'day') OR
-                   (cz.metrics_value_numeric > 18.5 and cz.shift = 'night'),
+                IF((cz.metrics_value_numeric > {{ params.client.alteal.day.sup_confort_zone + params.client.alteal.buffer_zone }} and cz.shift = 'day') OR
+                   (cz.metrics_value_numeric > {{ params.client.alteal.night.sup_confort_zone + params.client.alteal.buffer_zone }} and cz.shift = 'night'),
                     'Température supérieure à la zone tampon',
-                   IF((cz.metrics_value_numeric < 18.5 and cz.shift = 'day') OR
-                      (cz.metrics_value_numeric < 16.5 and cz.shift = 'night'),
+                   IF((cz.metrics_value_numeric < {{ params.client.alteal.day.inf_confort_zone - params.client.alteal.buffer_zone }} and cz.shift = 'day') 
+                      OR (cz.metrics_value_numeric < {{ params.client.alteal.night.inf_confort_zone - params.client.alteal.buffer_zone }} and cz.shift = 'night'),
                        'Température inférieure à la zone tampon',
-                      IF(cz.metrics_value_numeric >= 18.5 and cz.metrics_value_numeric < 19
+                      IF(cz.metrics_value_numeric >= {{ params.client.alteal.day.inf_confort_zone - params.client.alteal.buffer_zone }} 
+                             and cz.metrics_value_numeric < {{ params.client.alteal.day.inf_confort_zone }}
                              and cz.shift = 'day',
                          'Température dans la zone de confort - jour avec tampon de 0.5 degré',
-                         IF(cz.metrics_value_numeric >= 21 and cz.metrics_value_numeric < 21.5
+                         IF(cz.metrics_value_numeric >= {{ params.client.alteal.day.sup_confort_zone }} 
+                                and cz.metrics_value_numeric < {{ params.client.alteal.day.sup_confort_zone + params.client.alteal.buffer_zone}}
                                 and cz.shift = 'day',
                             'Température dans la zone de confort - jour avec tampon de 0.5 degré',
-                            IF(cz.metrics_value_numeric >= 16.5 and cz.metrics_value_numeric < 17
-                                   and cz.shift = 'night',
+                            IF(cz.metrics_value_numeric >= {{ params.client.alteal.night.inf_confort_zone - params.client.alteal.buffer_zone }} 
+                                    and cz.metrics_value_numeric < {{ params.client.alteal.night.inf_confort_zone }}
+                                    and cz.shift = 'night',
                                'Température dans la zone de confort - nuit avec tampon de 0.5 degré',
-                               IF(cz.metrics_value_numeric >= 18 and cz.metrics_value_numeric <= 18.5
-                                      and cz.shift = 'night',
+                               IF(cz.metrics_value_numeric >= {{ params.client.alteal.night.sup_confort_zone }} 
+                                    and cz.metrics_value_numeric <= {{ params.client.alteal.night.sup_confort_zone + params.client.alteal.buffer_zone}}
+                                    and cz.shift = 'night',
                                   'Température dans la zone de confort - nuit avec tampon de 0.5 degré',
                                   'N/A'
                                    )
@@ -211,11 +220,6 @@ WITH
       compute_time_spent cz
     left join parent_info on cz.group_id = parent_info.group_id
     left join batiment_multi bat ON cz.group_id = bat.descendants
-    where payload_date >= IF( MINUTE(now())>= 30,
-            toStartOfHour(now()),
-            addMinutes(toStartOfHour(now()), -30)) and
-        payload_date < IF( MINUTE(now())>= 30,
-            addMinutes(toStartOfHour(now()),30),
-            toStartOfHour(now()))
+    SETTINGS distributed_product_mode = 'global';
+Collapse
 
-       SETTINGS distributed_product_mode = 'global';
